@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Budget Manager - Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bgMain: '#0F111A',
+                        bgCard: '#171923',
+                        bgInput: '#0F111A',
+                        borderSubtle: '#2D3748',
+                        primary: '#6366F1',
+                        primaryHover: '#4F46E5',
+                        textMuted: '#A0AEC0',
+                        income: '#10B981',
+                        expense: '#F43F5E'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #2D3748; border-radius: 10px; }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 50; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+    </style>
+</head>
+<body class="bg-bgMain text-white font-sans min-h-screen p-4 md:p-8">
+
+    <div id="cat-modal" class="modal px-4">
+        <div class="bg-bgCard border border-borderSubtle w-full max-w-md rounded-2xl p-6 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Kategorien verwalten</h3>
+                <button onclick="toggleModal()" class="text-textMuted hover:text-white text-2xl">✕</button>
+            </div>
+            
+            <div id="cat-list-manager" class="space-y-2 max-h-60 overflow-y-auto mb-6 pr-2">
+                </div>
+
+            <div class="border-t border-borderSubtle pt-4">
+                <p class="text-xs text-textMuted mb-2 uppercase font-bold">Neu hinzufügen</p>
+                <div class="flex gap-2">
+                    <input id="new-cat-emoji" type="text" placeholder="Emoji" class="w-16 bg-bgInput border border-borderSubtle rounded-lg px-2 py-2 text-center focus:outline-none focus:border-primary">
+                    <input id="new-cat-name" type="text" placeholder="Name der Kategorie" class="flex-1 bg-bgInput border border-borderSubtle rounded-lg px-4 py-2 focus:outline-none focus:border-primary">
+                    <button onclick="addCategory()" class="bg-primary hover:bg-primaryHover px-4 rounded-lg font-bold">+</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2 cursor-pointer hover:opacity-80 transition group" onclick="changeName()">
+                    Hallo, <span id="user-name" class="text-primary">Vorname</span> 
+                    <span class="text-sm opacity-50 group-hover:opacity-100">✎</span>
+                </h1>
+                <p class="text-textMuted text-sm mt-1">Behalte dein Budget im Griff.</p>
+            </div>
+            <div class="bg-bgCard p-3 rounded-full border border-borderSubtle">💼</div>
+        </header>
+
+        <div class="bg-gradient-to-r from-indigo-500 via-purple-500 to-primary rounded-2xl p-6 shadow-lg relative overflow-hidden">
+            <div class="relative z-10">
+                <p class="text-sm text-indigo-100 mb-1">Aktueller Kontostand</p>
+                <h2 id="total-balance" class="text-4xl md:text-5xl font-extrabold tracking-tight mb-6">CHF 0.00</h2>
+                <div class="flex gap-8">
+                    <div><p id="income-label" class="text-xs text-indigo-200">↓ Einnahmen</p><p id="total-income" class="text-xl font-bold">CHF 0.00</p></div>
+                    <div><p id="expense-label" class="text-xs text-indigo-200">↑ Ausgaben</p><p id="total-expense" class="text-xl font-bold">CHF 0.00</p></div>
+                </div>
+            </div>
+            <div class="absolute right-0 top-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3"></div>
+        </div>
+
+        <div class="bg-bgCard rounded-2xl p-4 border border-borderSubtle flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-xl bg-bgInput p-2 rounded-lg border border-borderSubtle">📅</span>
+                <div>
+                    <h3 class="font-bold text-sm">Zeitraum filtern</h3>
+                    <p class="text-xs text-textMuted">Wähle Monat & Jahr für Ansicht und PDF-Export</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+                <select id="filter-month" class="bg-bgInput border border-borderSubtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-white w-full sm:w-auto cursor-pointer">
+                    <option value="all">Alle Monate</option>
+                    <option value="01">Januar</option>
+                    <option value="02">Februar</option>
+                    <option value="03">März</option>
+                    <option value="04">April</option>
+                    <option value="05">Mai</option>
+                    <option value="06">Juni</option>
+                    <option value="07">Juli</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">Oktober</option>
+                    <option value="11">November</option>
+                    <option value="12">Dezember</option>
+                </select>
+                <select id="filter-year" class="bg-bgInput border border-borderSubtle rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary text-white w-full sm:w-auto cursor-pointer">
+                    <option value="all">Alle Jahre</option>
+                </select>
+                <button onclick="exportToPDF()" class="bg-primary hover:bg-primaryHover px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 shadow-lg shadow-primary/20 w-full sm:w-auto justify-center">
+                    <span>📄</span> PDF Export
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            <div class="md:col-span-5 bg-bgCard rounded-2xl p-6 border border-borderSubtle">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <span class="text-primary">◎</span> Neuer Eintrag
+                    </h3>
+                    <button onclick="toggleModal()" class="text-textMuted hover:text-primary transition" title="Kategorien verwalten">⚙️</button>
+                </div>
+
+                <div class="flex bg-bgInput rounded-lg p-1 mb-6 border border-borderSubtle">
+                    <button id="btn-expense" class="flex-1 py-2 rounded-md transition font-medium text-sm">Ausgabe</button>
+                    <button id="btn-income" class="flex-1 py-2 rounded-md transition font-medium text-sm">Einnahme</button>
+                </div>
+
+                <form id="transaction-form" class="space-y-4">
+                    <div>
+                        <label class="block text-xs text-textMuted mb-1">Betrag (CHF)</label>
+                        <input id="amount" type="number" step="0.01" placeholder="0.00" required class="w-full bg-bgInput border border-borderSubtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-textMuted mb-1">Beschreibung</label>
+                        <input id="description" type="text" placeholder="z.B. Wocheneinkauf..." required class="w-full bg-bgInput border border-borderSubtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-primary">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-textMuted mb-1">Datum</label>
+                        <input id="date" type="date" required class="w-full bg-bgInput border border-borderSubtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-primary text-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-textMuted mb-1">Kategorie</label>
+                        <select id="category" class="w-full bg-bgInput border border-borderSubtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-primary appearance-none text-white">
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-primary hover:bg-primaryHover text-white font-bold py-3 rounded-lg transition mt-4 shadow-lg shadow-primary/20">Hinzufügen</button>
+                </form>
+            </div>
+
+            <div class="md:col-span-7 bg-bgCard rounded-2xl p-6 border border-borderSubtle flex flex-col">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-lg flex items-center gap-2"><span class="text-primary">≡</span> Verlauf</h3>
+                    <span id="entry-count" class="bg-bgInput border border-borderSubtle text-xs px-3 py-1 rounded-full text-textMuted">0 Einträge</span>
+                </div>
+                <div id="history-list" class="flex-1 overflow-y-auto max-h-[350px] space-y-3 pr-2"></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-10">
+            <div class="bg-bgCard rounded-2xl p-6 border border-borderSubtle">
+                <h3 class="font-bold text-lg mb-6">⏱ Ausgaben-Analyse</h3>
+                <div class="h-48"><canvas id="donutChart"></canvas></div>
+            </div>
+            <div class="bg-bgCard rounded-2xl p-6 border border-borderSubtle">
+                <h3 class="font-bold text-lg mb-6">📊 Cashflow</h3>
+                <div class="h-48"><canvas id="barChart"></canvas></div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Initial-Daten
+        let categories = JSON.parse(localStorage.getItem('budget_cats')) || {
+            expense: { 'Essen & Trinken': '🍿', 'ÖV / Mobilität': '🚌', 'Freizeit & Ausgang': '🎉', 'Abos & Medien': '📱', 'Sparen': '🏦' },
+            income: { 'Lohn': '💸', 'Sackgeld': '🏦', 'Sonstiges': '💰' }
+        };
+
+        let transactions = JSON.parse(localStorage.getItem('budget_tx')) || [];
+        let currentType = 'expense';
+
+        const userNameEl = document.getElementById('user-name');
+        const categorySelect = document.getElementById('category');
+        const historyList = document.getElementById('history-list');
+
+        function toggleModal() { document.getElementById('cat-modal').classList.toggle('active'); renderCategoryManager(); }
+
+        function changeName() {
+            const n = prompt("Name ändern:", userNameEl.textContent);
+            if(n) { userNameEl.textContent = n; localStorage.setItem('budget_user', n); }
+        }
+
+        function setType(type) {
+            currentType = type;
+            const isExp = type === 'expense';
+            document.getElementById('btn-expense').className = isExp ? "flex-1 py-2 rounded-md bg-expense/20 text-expense border border-expense/30" : "flex-1 py-2 rounded-md text-textMuted";
+            document.getElementById('btn-income').className = !isExp ? "flex-1 py-2 rounded-md bg-income/20 text-income border border-income/30" : "flex-1 py-2 rounded-md text-textMuted";
+            
+            categorySelect.innerHTML = '';
+            Object.entries(categories[currentType]).forEach(([name, emoji]) => {
+                const opt = document.createElement('option');
+                opt.value = name; opt.textContent = `${emoji} ${name}`;
+                categorySelect.appendChild(opt);
+            });
+        }
+
+        function renderCategoryManager() {
+            const container = document.getElementById('cat-list-manager');
+            container.innerHTML = `<p class="text-xs text-primary mb-2 uppercase font-bold">${currentType === 'expense' ? 'Ausgaben' : 'Einnahmen'}-Kategorien</p>`;
+            Object.entries(categories[currentType]).forEach(([name, emoji]) => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-bgInput p-3 rounded-lg border border-borderSubtle";
+                div.innerHTML = `<span>${emoji} ${name}</span><button onclick="removeCategory('${name}')" class="text-expense">✕</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        function addCategory() {
+            const emoji = document.getElementById('new-cat-emoji').value || '📁';
+            const name = document.getElementById('new-cat-name').value.trim();
+            if(name) {
+                categories[currentType][name] = emoji;
+                saveCategories();
+                document.getElementById('new-cat-emoji').value = '';
+                document.getElementById('new-cat-name').value = '';
+                renderCategoryManager();
+                setType(currentType);
+            }
+        }
+
+        function removeCategory(name) {
+            delete categories[currentType][name];
+            saveCategories();
+            renderCategoryManager();
+            setType(currentType);
+        }
+
+        function saveCategories() { localStorage.setItem('budget_cats', JSON.stringify(categories)); }
+
+        // Befüllt das Jahr-Dropdown vollautomatisch und dynamisch
+        function populateYearFilter() {
+            const yearSelect = document.getElementById('filter-year');
+            const savedValue = yearSelect.value || 'all';
+            
+            // Set aus den Jahren aller bestehenden Transaktionen erstellen
+            const years = new Set();
+            transactions.forEach(t => {
+                const parts = t.date.split('.'); // DD.MM.YYYY
+                if(parts[2]) years.add(parts[2]);
+            });
+            
+            // Das aktuelle Jahr sowie die nächsten 3 Jahre auf jeden Fall hinzufügen
+            const currentYear = new Date().getFullYear();
+            for(let i = 0; i <= 3; i++) {
+                years.add((currentYear + i).toString());
+            }
+            
+            // Sortieren (aufsteigend)
+            const sortedYears = Array.from(years).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            // Dropdown neu aufbauen
+            yearSelect.innerHTML = '<option value="all">Alle Jahre</option>';
+            sortedYears.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y;
+                yearSelect.appendChild(opt);
+            });
+            
+            // Vorherige Auswahl wiederherstellen, falls sie noch existiert
+            yearSelect.value = savedValue;
+        }
+
+        function updateUI() {
+            populateYearFilter(); // Aktualisiert die Jahre im Filter bei jeder UI-Änderung
+            
+            const selMonth = document.getElementById('filter-month').value;
+            const selYear = document.getElementById('filter-year').value;
+            
+            let globalInc = 0, globalExp = 0;
+            let filteredInc = 0, filteredExp = 0;
+            
+            historyList.innerHTML = '';
+
+            const indexedTxs = transactions.map((t, idx) => ({ ...t, originalIndex: idx }));
+            
+            let displayTxs = indexedTxs.filter(t => {
+                const parts = t.date.split('.'); 
+                const monthMatch = (selMonth === 'all' || parts[1].padStart(2, '0') === selMonth);
+                const yearMatch = (selYear === 'all' || parts[2] === selYear);
+                return monthMatch && yearMatch;
+            });
+
+            transactions.forEach(t => {
+                if(t.type === 'income') globalInc += t.amount; else globalExp += t.amount;
+            });
+
+            displayTxs.slice().reverse().forEach((t) => {
+                if(t.type === 'income') filteredInc += t.amount; else filteredExp += t.amount;
+                
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center bg-bgInput border border-borderSubtle p-4 rounded-xl group";
+                div.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-lg bg-bgCard border border-borderSubtle flex items-center justify-center">${categories[t.type][t.category] || '💰'}</div>
+                        <div><p class="font-semibold text-sm">${t.description}</p><p class="text-xs text-textMuted">${t.category} • ${t.date}</p></div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="font-bold ${t.type === 'income' ? 'text-income' : 'text-white'}">${t.type === 'income' ? '+' : '-'} CHF ${t.amount.toFixed(2)}</span>
+                        <button onclick="deleteTx(${t.originalIndex})" class="text-expense opacity-0 group-hover:opacity-100 transition">✕</button>
+                    </div>`;
+                historyList.appendChild(div);
+            });
+
+            const isFiltered = (selMonth !== 'all' || selYear !== 'all');
+            document.getElementById('income-label').textContent = `↓ Einnahmen${isFiltered ? " (Filter)" : ""}`;
+            document.getElementById('expense-label').textContent = `↑ Ausgaben${isFiltered ? " (Filter)" : ""}`;
+
+            document.getElementById('total-balance').textContent = `CHF ${(globalInc - globalExp).toFixed(2)}`;
+            document.getElementById('total-income').textContent = `CHF ${(isFiltered ? filteredInc : globalInc).toFixed(2)}`;
+            document.getElementById('total-expense').textContent = `CHF ${(isFiltered ? filteredExp : globalExp).toFixed(2)}`;
+            document.getElementById('entry-count').textContent = `${displayTxs.length} Einträge`;
+            
+            localStorage.setItem('budget_tx', JSON.stringify(transactions));
+            updateCharts(isFiltered ? filteredInc : globalInc, isFiltered ? filteredExp : globalExp, displayTxs);
+        }
+
+        window.deleteTx = (i) => { transactions.splice(i, 1); updateUI(); };
+
+        document.getElementById('transaction-form').onsubmit = (e) => {
+            e.preventDefault();
+            
+            const inputDate = document.getElementById('date').value;
+            const formattedDate = inputDate ? new Date(inputDate).toLocaleDateString('de-CH') : new Date().toLocaleDateString('de-CH');
+
+            transactions.push({
+                type: currentType,
+                amount: parseFloat(document.getElementById('amount').value),
+                description: document.getElementById('description').value,
+                category: categorySelect.value,
+                date: formattedDate
+            });
+            e.target.reset();
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            updateUI();
+        };
+
+        // Tintensparender PDF-Export
+        function exportToPDF() {
+            const selMonth = document.getElementById('filter-month').value;
+            const selYear = document.getElementById('filter-year').value;
+            const userName = userNameEl.textContent;
+            
+            let periodText = "Gesamtübersicht";
+            const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+            
+            if (selMonth !== 'all' && selYear === 'all') {
+                periodText = `${monthNames[parseInt(selMonth) - 1]} (Alle Jahre)`;
+            } else if (selMonth === 'all' && selYear !== 'all') {
+                periodText = `Jahr ${selYear}`;
+            } else if (selMonth !== 'all' && selYear !== 'all') {
+                periodText = `${monthNames[parseInt(selMonth) - 1]} ${selYear}`;
+            }
+
+            let displayTxs = transactions.filter(t => {
+                const parts = t.date.split('.');
+                const monthMatch = (selMonth === 'all' || parts[1].padStart(2, '0') === selMonth);
+                const yearMatch = (selYear === 'all' || parts[2] === selYear);
+                return monthMatch && yearMatch;
+            });
+            
+            let inc = 0, exp = 0;
+            displayTxs.forEach(t => {
+                if(t.type === 'income') inc += t.amount; else exp += t.amount;
+            });
+            const balance = inc - exp;
+
+            const printContainer = document.createElement('div');
+            printContainer.style.position = 'absolute';
+            printContainer.style.left = '-9999px';
+            printContainer.style.top = '0';
+            document.body.appendChild(printContainer);
+
+            const printElement = document.createElement('div');
+            printElement.style.padding = '25px';
+            printElement.style.color = '#111827';
+            printElement.style.fontFamily = 'Arial, sans-serif';
+            printElement.style.backgroundColor = '#ffffff';
+            printElement.style.width = '750px';
+
+            let htmlContent = `
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #6366F1; padding-bottom: 12px; margin-bottom: 20px;">
+                    <div>
+                        <h1 style="margin: 0; color: #6366F1; font-size: 24px; font-weight: bold;">Budget Manager Bericht</h1>
+                        <p style="margin: 4px 0 0 0; color: #4B5563; font-size: 12px;">Erstellt für: <strong>${userName}</strong></p>
+                    </div>
+                    <div style="text-align: right;">
+                        <h2 style="margin: 0; color: #4B5563; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Zeitraum</h2>
+                        <p style="margin: 4px 0 0 0; color: #111827; font-weight: bold; font-size: 15px;">${periodText}</p>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                    <div style="flex: 1; background: #F3F4F6; padding: 10px; border-radius: 8px; border-left: 4px solid #6366F1;">
+                        <p style="margin: 0; font-size: 10px; color: #4B5563; text-transform: uppercase;">Saldo</p>
+                        <h3 style="margin: 4px 0 0 0; font-size: 16px; font-weight: bold; color: ${balance >= 0 ? '#10B981' : '#EF4444'}">CHF ${balance.toFixed(2)}</h3>
+                    </div>
+                    <div style="flex: 1; background: #F3F4F6; padding: 10px; border-radius: 8px; border-left: 4px solid #10B981;">
+                        <p style="margin: 0; font-size: 10px; color: #4B5563; text-transform: uppercase;">Einnahmen</p>
+                        <h3 style="margin: 4px 0 0 0; font-size: 16px; font-weight: bold; color: #10B981">CHF ${inc.toFixed(2)}</h3>
+                    </div>
+                    <div style="flex: 1; background: #F3F4F6; padding: 10px; border-radius: 8px; border-left: 4px solid #EF4444;">
+                        <p style="margin: 0; font-size: 10px; color: #4B5563; text-transform: uppercase;">Ausgaben</p>
+                        <h3 style="margin: 4px 0 0 0; font-size: 16px; font-weight: bold; color: #EF4444">CHF ${exp.toFixed(2)}</h3>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 25px; border: 1px solid #E5E7EB; padding: 15px; border-radius: 12px; background: #FAFAFA;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="width: 50%; padding-right: 10px; text-align: center; vertical-align: top;">
+                                <p style="font-size: 11px; font-weight: bold; color: #4B5563; margin: 0 0 8px 0;">Ausgaben nach Kategorie</p>
+                                <div style="display: flex; justify-content: center;"><canvas id="pdfDonutChart" width="320" height="150"></canvas></div>
+                            </td>
+                            <td style="width: 50%; padding-left: 10px; text-align: center; vertical-align: top;">
+                                <p style="font-size: 11px; font-weight: bold; color: #4B5563; margin: 0 0 8px 0;">Cashflow-Vergleich</p>
+                                <div style="display: flex; justify-content: center;"><canvas id="pdfBarChart" width="320" height="150"></canvas></div>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                <h2 style="font-size: 15px; color: #111827; margin-bottom: 10px; font-weight: bold;">Transaktionen (${displayTxs.length} Einträge)</h2>
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 11px;">
+                    <thead>
+                        <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                            <th style="padding: 6px 8px; color: #4B5563; font-weight: bold;">Datum</th>
+                            <th style="padding: 6px 8px; color: #4B5563; font-weight: bold;">Beschreibung</th>
+                            <th style="padding: 6px 8px; color: #4B5563; font-weight: bold;">Kategorie</th>
+                            <th style="padding: 6px 8px; color: #4B5563; font-weight: bold; text-align: right;">Betrag</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            if (displayTxs.length === 0) {
+                htmlContent += `<tr><td colspan="4" style="padding: 20px; text-align: center; color: #9CA3AF; font-style: italic;">Keine Einträge für diesen Zeitraum gefunden.</td></tr>`;
+            } else {
+                displayTxs.slice().reverse().forEach(t => {
+                    const emoji = categories[t.type][t.category] || '💰';
+                    const isInc = t.type === 'income';
+                    htmlContent += `
+                        <tr style="border-bottom: 1px solid #E5E7EB;">
+                            <td style="padding: 6px 8px; color: #6B7280;">${t.date}</td>
+                            <td style="padding: 6px 8px; font-weight: 500; color: #111827;">${t.description}</td>
+                            <td style="padding: 6px 8px; color: #374151;">${emoji} ${t.category}</td>
+                            <td style="padding: 6px 8px; text-align: right; font-weight: bold; color: ${isInc ? '#10B981' : '#111827'};">
+                                ${isInc ? '+' : '-'} CHF ${t.amount.toFixed(2)}
+                            </td>
+                        </tr>
+                    `;
+                });
+            }
+
+            htmlContent += `
+                    </tbody>
+                </table>
+                <div style="margin-top: 30px; text-align: center; color: #9CA3AF; font-size: 9px; border-top: 1px solid #E5E7EB; padding-top: 10px;">
+                    Generiert am ${new Date().toLocaleDateString('de-CH')} um ${new Date().toLocaleTimeString('de-CH', {hour: '2-digit', minute:'2-digit'})} • Budget Manager Pro
+                </div>
+            `;
+
+            printElement.innerHTML = htmlContent;
+            printContainer.appendChild(printElement);
+
+            // PDF-Balkendiagramm (Eco-Outlines)
+            const pdfBarCtx = document.getElementById('pdfBarChart').getContext('2d');
+            new Chart(pdfBarCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Einnahmen', 'Ausgaben'],
+                    datasets: [{
+                        data: [inc, exp],
+                        backgroundColor: ['rgba(16, 185, 129, 0.06)', 'rgba(244, 63, 94, 0.06)'],
+                        borderColor: ['#10B981', '#F43F5E'],
+                        borderWidth: 1.5,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: false, animation: false, plugins: { legend: false },
+                    scales: { y: { display: false }, x: { ticks: { color: '#4B5563', font: { size: 9 } }, grid: { display: false } } }
+                }
+            });
+
+            // PDF-Donutdiagramm (Pastell)
+            const expTxs = displayTxs.filter(t => t.type === 'expense');
+            const data = {};
+            expTxs.forEach(t => data[t.category] = (data[t.category] || 0) + t.amount);
+
+            const pdfDonutCtx = document.getElementById('pdfDonutChart').getContext('2d');
+            new Chart(pdfDonutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: ['#93C5FD', '#C084FC', '#F472B6', '#FCA5A5', '#FCD34D', '#6EE7B7'],
+                        borderColor: '#ffffff', borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: false, animation: false,
+                    plugins: { legend: { position: 'right', labels: { color: '#4B5563', font: { size: 8 }, boxWidth: 10 } } }
+                }
+            });
+
+            const options = {
+                margin:       10,
+                filename:     `Budgetbericht_${periodText.replace(/\s+/g, '_')}.pdf`,
+                image:        { type: 'jpeg', quality: 0.95 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(options).from(printElement).save().then(() => {
+                document.body.removeChild(printContainer);
+            });
+        }
+
+        // Haupt-Charts
+        const donut = new Chart(document.getElementById('donutChart'), {
+            type: 'doughnut',
+            data: { labels: [], datasets: [{ data: [], backgroundColor: ['#3B82F6', '#8B5CF6', '#EC4899', '#EF4444', '#F59E0B', '#10B981'], borderWidth: 0 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: '#A0AEC0', font: { size: 10 } } } } }
+        });
+
+        const bar = new Chart(document.getElementById('barChart'), {
+            type: 'bar',
+            data: { labels: ['Einnahmen', 'Ausgaben'], datasets: [{ data: [], backgroundColor: ['#10B981', '#F43F5E'], borderRadius: 4 }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: false }, scales: { y: { display: false }, x: { ticks: { color: '#A0AEC0' }, grid: { display: false } } } }
+        });
+
+        function updateCharts(inc, exp, currentTxs) {
+            bar.data.datasets[0].data = [inc, exp];
+            bar.update();
+
+            const expTxs = currentTxs.filter(t => t.type === 'expense');
+            const data = {};
+            expTxs.forEach(t => data[t.category] = (data[t.category] || 0) + t.amount);
+            donut.data.labels = Object.keys(data);
+            donut.data.datasets[0].data = Object.values(data);
+            donut.update();
+        }
+
+        window.onload = () => {
+            const storedName = localStorage.getItem('budget_user');
+            if (storedName && storedName.trim()) {
+                userNameEl.textContent = storedName.trim();
+            } else {
+                const promptedName = prompt('Bitte gib deinen Vornamen ein:', '');
+                const name = (promptedName ? promptedName.trim() : '') || 'Vorname';
+                userNameEl.textContent = name;
+                localStorage.setItem('budget_user', name);
+            }
+
+            document.getElementById('btn-expense').onclick = () => setType('expense');
+            document.getElementById('btn-income').onclick = () => setType('income');
+            
+            document.getElementById('date').value = new Date().toISOString().split('T')[0];
+            
+            document.getElementById('filter-month').onchange = () => updateUI();
+            document.getElementById('filter-year').onchange = () => updateUI();
+            
+            setType('expense');
+            updateUI();
+        };
+    </script>
+</body>
+</html>
